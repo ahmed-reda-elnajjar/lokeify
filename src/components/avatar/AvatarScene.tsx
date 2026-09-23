@@ -19,15 +19,15 @@ export default function AvatarScene({ children }: Props) {
         camera={{ position: [0, 1.15, 2.6], fov: 35 }}
         className="rounded-2xl"
       >
-        <color attach="background" args={["#131318"]} />
-        <ambientLight intensity={0.55} />
+        <color attach="background" args={["#ffffff"]} />
+        <ambientLight intensity={0.75} />
         <directionalLight
           position={[2, 3, 2]}
           intensity={1.1}
           castShadow
           shadow-mapSize={[1024, 1024]}
         />
-        <directionalLight position={[-2, 1.5, -1]} intensity={0.3} />
+        <directionalLight position={[-2, 1.5, -1]} intensity={0.4} />
 
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>{children}</group>

@@ -18,14 +18,13 @@ export default function ProductImagePlaceholder({
   className,
 }: Props) {
   return (
-    <div
-      className={className}
-      style={{
-        background: `linear-gradient(155deg, ${accentHex}33 0%, #131318 70%)`,
-      }}
-    >
+    <div className={`relative bg-surface-2 ${className ?? ""}`}>
+      <span
+        className="absolute right-3 top-3 h-3 w-3 rounded-full border border-border"
+        style={{ backgroundColor: accentHex }}
+      />
       <div className="flex h-full w-full items-center justify-center">
-        <span className="text-6xl drop-shadow-lg">{categoryIcon[category]}</span>
+        <span className="text-6xl">{categoryIcon[category]}</span>
       </div>
     </div>
   );

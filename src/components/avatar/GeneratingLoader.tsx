@@ -39,7 +39,7 @@ export default function GeneratingLoader({ onDone, durationMs = 3200 }: Props) {
       <p className="text-lg font-medium">{messages[index]}</p>
       <div className="h-1.5 w-64 overflow-hidden rounded-full bg-surface-2">
         <div
-          className="h-full rounded-full gradient-bg transition-all duration-500"
+          className="h-full rounded-full bg-foreground transition-all duration-500"
           style={{ width: `${((index + 1) / messages.length) * 100}%` }}
         />
       </div>

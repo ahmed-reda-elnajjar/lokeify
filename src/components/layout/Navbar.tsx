@@ -119,8 +119,8 @@ export default function Navbar() {
                 className={cn(
                   "rounded-lg px-3 py-2.5 text-sm transition-colors",
                   pathname === link.href
-                    ? "bg-surface text-foreground"
-                    : "text-muted hover:bg-surface"
+                    ? "bg-surface-2 text-foreground"
+                    : "text-muted hover:bg-surface-2"
                 )}
               >
                 {link.label}

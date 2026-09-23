@@ -7,7 +7,7 @@ export default function ProductCard({ product }: { product: Product }) {
   return (
     <Link
       href={`/store/${product.id}`}
-      className="group overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-brand"
+      className="group overflow-hidden rounded-xl border border-border bg-surface transition-all hover:border-foreground hover:shadow-sm"
     >
       <ProductImagePlaceholder
         category={product.category}

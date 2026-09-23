@@ -18,7 +18,7 @@ const points = [
 
 export default function ProblemSolution() {
   return (
-    <section className="border-t border-border bg-surface/40">
+    <section className="border-t border-border bg-section">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="grid gap-8 sm:grid-cols-3">
           {points.map((p) => (

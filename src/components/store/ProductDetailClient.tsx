@@ -72,7 +72,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
         <button
           type="button"
           onClick={handleTryOn}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full gradient-bg py-3.5 text-sm font-medium text-white transition-transform hover:scale-[1.01] sm:w-auto sm:px-8"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark sm:w-auto sm:px-8"
         >
           <span>🧍</span> Try On My Avatar
         </button>
@@ -103,7 +103,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
         <button
           type="button"
           onClick={handleAddToCart}
-          className="mt-6 w-full rounded-full border border-border py-3.5 text-sm font-medium transition-colors hover:border-brand sm:w-auto sm:px-8"
+          className="mt-6 w-full rounded-full border border-foreground py-3.5 text-sm font-medium transition-colors hover:bg-surface-2 sm:w-auto sm:px-8"
         >
           {added ? "Added to Cart ✓" : "Add to Cart"}
         </button>

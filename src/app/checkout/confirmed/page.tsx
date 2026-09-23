@@ -52,7 +52,7 @@ function ConfirmedContent() {
         </Link>
         <Link
           href="/"
-          className="rounded-full border border-border px-6 py-3 text-sm font-medium transition-colors hover:border-brand"
+          className="rounded-full border border-foreground px-6 py-3 text-sm font-medium transition-colors hover:bg-surface-2"
         >
           Back Home
         </Link>

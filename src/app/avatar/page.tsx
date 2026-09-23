@@ -82,7 +82,7 @@ export default function AvatarPage() {
         </div>
         <button
           onClick={() => router.push("/create-avatar")}
-          className="rounded-full border border-border px-4 py-2 text-sm transition-colors hover:border-brand"
+          className="rounded-full border border-foreground px-4 py-2 text-sm transition-colors hover:bg-surface-2"
         >
           Edit Measurements
         </button>

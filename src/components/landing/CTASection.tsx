@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function CTASection() {
   return (
-    <section className="border-t border-border">
+    <section className="border-t border-border bg-section">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Ready to try it on yourself?

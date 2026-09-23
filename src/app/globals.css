@@ -1,20 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0b0f;
-  --surface: #131318;
-  --surface-2: #1c1c24;
-  --foreground: #f5f3ef;
-  --muted: #9a98a3;
-  --border: #2a2a33;
-  --brand: #7c6cf6;
-  --brand-dark: #5d4fd6;
-  --accent: #ff8a5c;
-  --success: #3ecf8e;
+  --background: #ffffff;
+  --section: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f6f6f7;
+  --foreground: #1a1a1a;
+  --muted: #6d7175;
+  --border: #e1e3e5;
+  --brand: #1a1a1a;
+  --brand-dark: #000000;
+  --accent: #008060;
+  --success: #008060;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-section: var(--section);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
@@ -24,8 +26,7 @@
   --color-brand-dark: var(--brand-dark);
   --color-accent: var(--accent);
   --color-success: var(--success);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
 }
 
 body {
@@ -39,26 +40,6 @@ body {
 }
 
 ::selection {
-  background: var(--brand);
+  background: var(--foreground);
   color: white;
-}
-
-.gradient-text {
-  background: linear-gradient(90deg, var(--brand) 0%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.gradient-bg {
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 60%, #2a1f66 100%);
-}
-
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.animate-spin-slow {
-  animation: spin-slow 2.5s linear infinite;
 }
