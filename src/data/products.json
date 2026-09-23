@@ -1,0 +1,132 @@
+[
+  {
+    "id": "classic-tee",
+    "name": "Classic Crew Tee",
+    "brand": "Store X",
+    "category": "tshirt",
+    "price": 450,
+    "currency": "EGP",
+    "description": "A soft, breathable cotton crew-neck tee built for Cairo's heat. Relaxed fit through the chest with a clean, minimal silhouette.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Sandstone", "hex": "#d9c9ad" },
+      { "name": "Black", "hex": "#1a1a1a" },
+      { "name": "Nile Blue", "hex": "#2f4f6f" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 84, "chestMaxCm": 92 },
+      { "size": "M", "chestMinCm": 92, "chestMaxCm": 100 },
+      { "size": "L", "chestMinCm": 100, "chestMaxCm": 108 },
+      { "size": "XL", "chestMinCm": 108, "chestMaxCm": 118 }
+    ],
+    "accentHex": "#d9c9ad"
+  },
+  {
+    "id": "oversized-tee",
+    "name": "Oversized Boxy Tee",
+    "brand": "Store X",
+    "category": "tshirt",
+    "price": 520,
+    "currency": "EGP",
+    "description": "Heavyweight cotton with a dropped shoulder and boxy cut for an oversized streetwear look.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Off White", "hex": "#efece4" },
+      { "name": "Charcoal", "hex": "#33333a" },
+      { "name": "Terracotta", "hex": "#b5573a" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 88, "chestMaxCm": 98 },
+      { "size": "M", "chestMinCm": 98, "chestMaxCm": 108 },
+      { "size": "L", "chestMinCm": 108, "chestMaxCm": 118 },
+      { "size": "XL", "chestMinCm": 118, "chestMaxCm": 128 }
+    ],
+    "accentHex": "#b5573a"
+  },
+  {
+    "id": "slim-chinos",
+    "name": "Slim Fit Chinos",
+    "brand": "Store X",
+    "category": "pants",
+    "price": 780,
+    "currency": "EGP",
+    "description": "Tapered stretch-cotton chinos that move with you, from the office to the coast.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Khaki", "hex": "#a68a5b" },
+      { "name": "Navy", "hex": "#22314f" },
+      { "name": "Olive", "hex": "#5a5f3d" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 82, "chestMaxCm": 90 },
+      { "size": "M", "chestMinCm": 90, "chestMaxCm": 98 },
+      { "size": "L", "chestMinCm": 98, "chestMaxCm": 106 },
+      { "size": "XL", "chestMinCm": 106, "chestMaxCm": 116 }
+    ],
+    "accentHex": "#a68a5b"
+  },
+  {
+    "id": "relaxed-denim",
+    "name": "Relaxed Denim",
+    "brand": "Store X",
+    "category": "pants",
+    "price": 890,
+    "currency": "EGP",
+    "description": "Mid-wash denim with a relaxed leg and a touch of stretch for all-day comfort.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Mid Wash", "hex": "#5b7391" },
+      { "name": "Black Wash", "hex": "#22242b" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 84, "chestMaxCm": 92 },
+      { "size": "M", "chestMinCm": 92, "chestMaxCm": 100 },
+      { "size": "L", "chestMinCm": 100, "chestMaxCm": 108 },
+      { "size": "XL", "chestMinCm": 108, "chestMaxCm": 118 }
+    ],
+    "accentHex": "#5b7391"
+  },
+  {
+    "id": "bomber-jacket",
+    "name": "Classic Bomber Jacket",
+    "brand": "Store X",
+    "category": "jacket",
+    "price": 1450,
+    "currency": "EGP",
+    "description": "A lightweight bomber with ribbed cuffs and hem — the layer that finishes every outfit.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Black", "hex": "#161616" },
+      { "name": "Olive", "hex": "#4a5240" },
+      { "name": "Rust", "hex": "#8c4a2f" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 90, "chestMaxCm": 98 },
+      { "size": "M", "chestMinCm": 98, "chestMaxCm": 106 },
+      { "size": "L", "chestMinCm": 106, "chestMaxCm": 114 },
+      { "size": "XL", "chestMinCm": 114, "chestMaxCm": 124 }
+    ],
+    "accentHex": "#8c4a2f"
+  },
+  {
+    "id": "windbreaker",
+    "name": "Packable Windbreaker",
+    "brand": "Store X",
+    "category": "jacket",
+    "price": 1150,
+    "currency": "EGP",
+    "description": "Water-resistant shell that packs into its own pocket — light enough to carry everywhere.",
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": [
+      { "name": "Electric Blue", "hex": "#3355a8" },
+      { "name": "Black", "hex": "#191919" }
+    ],
+    "sizeChart": [
+      { "size": "S", "chestMinCm": 88, "chestMaxCm": 96 },
+      { "size": "M", "chestMinCm": 96, "chestMaxCm": 104 },
+      { "size": "L", "chestMinCm": 104, "chestMaxCm": 112 },
+      { "size": "XL", "chestMinCm": 112, "chestMaxCm": 122 }
+    ],
+    "accentHex": "#3355a8"
+  }
+]
