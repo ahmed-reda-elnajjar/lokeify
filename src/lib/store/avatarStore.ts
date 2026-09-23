@@ -22,10 +22,12 @@ interface AvatarState {
   measurements: Measurements;
   photoPreviews: PhotoPreviews;
   generated: boolean;
+  hasHydrated: boolean;
   setMeasurements: (m: Partial<Measurements>) => void;
   setPhotoPreview: (key: keyof PhotoPreviews, url: string | null) => void;
   markGenerated: () => void;
   reset: () => void;
+  setHasHydrated: (v: boolean) => void;
 }
 
 export const useAvatarStore = create<AvatarState>()(
@@ -34,6 +36,7 @@ export const useAvatarStore = create<AvatarState>()(
       measurements: DEFAULT_MEASUREMENTS,
       photoPreviews: { front: null, side: null, face: null },
       generated: false,
+      hasHydrated: false,
       setMeasurements: (m) =>
         set((state) => ({ measurements: { ...state.measurements, ...m } })),
       setPhotoPreview: (key, url) =>
@@ -41,6 +44,7 @@ export const useAvatarStore = create<AvatarState>()(
           photoPreviews: { ...state.photoPreviews, [key]: url },
         })),
       markGenerated: () => set({ generated: true }),
+      setHasHydrated: (v) => set({ hasHydrated: v }),
       reset: () =>
         set({
           measurements: DEFAULT_MEASUREMENTS,
@@ -54,6 +58,9 @@ export const useAvatarStore = create<AvatarState>()(
         measurements: state.measurements,
         generated: state.generated,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
