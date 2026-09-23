@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCartStore } from "@/lib/store/cartStore";
@@ -17,6 +18,7 @@ export default function Navbar() {
     s.items.reduce((sum, i) => sum + i.quantity, 0)
   );
   const generated = useAvatarStore((s) => s.generated);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur">
@@ -81,8 +83,61 @@ export default function Navbar() {
               </span>
             )}
           </Link>
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border sm:hidden"
+            aria-label="Toggle menu"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              className="h-4 w-4"
+            >
+              {menuOpen ? (
+                <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+              ) : (
+                <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
+              )}
+            </svg>
+          </button>
         </div>
       </nav>
+
+      {menuOpen && (
+        <div className="border-t border-border bg-background px-4 py-3 sm:hidden">
+          <div className="flex flex-col gap-1">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className={cn(
+                  "rounded-lg px-3 py-2.5 text-sm transition-colors",
+                  pathname === link.href
+                    ? "bg-surface text-foreground"
+                    : "text-muted hover:bg-surface"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {!generated && (
+              <Link
+                href="/create-avatar"
+                onClick={() => setMenuOpen(false)}
+                className="mt-2 rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-white"
+              >
+                Create Your Avatar
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
