@@ -1,4 +1,3 @@
-import Link from "next/link";
 import HeroAvatarPreview from "@/components/landing/HeroAvatarPreview";
 
 export default function Hero() {
@@ -18,26 +17,26 @@ export default function Hero() {
             first.
           </h1>
           <p className="mt-6 max-w-lg text-base text-muted sm:text-lg">
-            Lokeify gives every shopper a personal 3D avatar — so they can see
-            exactly how a t-shirt, pair of pants, or jacket will look and fit
-            on their body, in their size, before they buy.
+            Lokeify is the store builder for fashion brands: products, orders and
+            checkout like Shopify — plus a 3D fit room, AI photo try-on and size
+            advice on every product, so shoppers buy the right size first time.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link
-              href="/create-avatar"
+            <a
+              href="/signup"
               className="rounded-full bg-brand px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
             >
-              Create Your Avatar
-            </Link>
-            <Link
-              href="/store"
+              Start your store
+            </a>
+            <a
+              href="/s/crate"
               className="rounded-full border border-foreground px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-2"
             >
-              Browse Demo Store
-            </Link>
+              See the demo store
+            </a>
           </div>
           <p className="mt-4 text-xs text-muted">
-            No signup needed — this is a click-through prototype.
+            Free while you build. Your store is live at lokeify.com/s/your-name.
           </p>
         </div>
 

@@ -4,7 +4,9 @@ import { Suspense, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
 import AvatarModel, { ActiveClothing } from "@/components/avatar/AvatarModel";
-import { DEFAULT_MEASUREMENTS } from "@/lib/store/avatarStore";
+import type { Measurements } from "@/types";
+
+const DEFAULT_MEASUREMENTS: Measurements = { heightCm: 175, weightKg: 70, chestCm: 96, waistCm: 82, hipCm: 98, shoulderCm: 46, shoeSize: 42 };
 
 const previewClothing: ActiveClothing = {
   tshirt: { active: true, color: "#1a1a1a" },

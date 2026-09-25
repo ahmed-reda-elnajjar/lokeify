@@ -2,107 +2,54 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCartStore } from "@/lib/store/cartStore";
-import { useAvatarStore } from "@/lib/store/avatarStore";
-import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/store", label: "Store X" },
-  { href: "/avatar", label: "My Avatar" },
+  { href: "/#features", label: "Features" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/s/crate", label: "Demo store" },
 ];
 
-export default function Navbar() {
-  const pathname = usePathname();
-  const itemCount = useCartStore((s) =>
-    s.items.reduce((sum, i) => sum + i.quantity, 0)
-  );
-  const generated = useAvatarStore((s) => s.generated);
+/** Marketing header for the Lokeify platform (merchants), not for shoppers. */
+export default function Navbar({ signedIn }: { signedIn: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="text-lg font-semibold tracking-tight">
-          Loke<span className="text-brand">ify</span>
+          Loke<span className="text-accent">ify</span>
         </Link>
 
         <div className="hidden items-center gap-6 sm:flex">
           {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "text-sm transition-colors hover:text-foreground",
-                pathname === link.href ? "text-foreground" : "text-muted"
-              )}
-            >
+            <a key={link.href} href={link.href} className="text-sm text-muted transition-colors hover:text-foreground">
               {link.label}
-              {link.href === "/avatar" && !generated && (
-                <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">
-                  create
-                </span>
-              )}
-            </Link>
+            </a>
           ))}
         </div>
 
         <div className="flex items-center gap-3">
-          {!generated && (
-            <Link
-              href="/create-avatar"
-              className="hidden rounded-full bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark sm:block"
-            >
-              Create Your Avatar
-            </Link>
+          {signedIn ? (
+            <a href="/admin" className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark">
+              Go to admin
+            </a>
+          ) : (
+            <>
+              <a href="/login" className="hidden text-sm text-muted hover:text-foreground sm:block">Log in</a>
+              <a href="/signup" className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark">
+                Start free
+              </a>
+            </>
           )}
-          <Link
-            href="/cart"
-            className="relative rounded-full border border-border p-2 text-sm transition-colors hover:border-brand"
-            aria-label="Cart"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 3h1.5l2.4 12.2a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.6L20 8H6"
-              />
-              <circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none" />
-              <circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none" />
-            </svg>
-            {itemCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-border sm:hidden"
             aria-label="Toggle menu"
+            aria-expanded={menuOpen}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              className="h-4 w-4"
-            >
-              {menuOpen ? (
-                <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
-              ) : (
-                <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
-              )}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
+              {menuOpen ? <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /> : <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />}
             </svg>
           </button>
         </div>
@@ -112,29 +59,11 @@ export default function Navbar() {
         <div className="border-t border-border bg-background px-4 py-3 sm:hidden">
           <div className="flex flex-col gap-1">
             {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className={cn(
-                  "rounded-lg px-3 py-2.5 text-sm transition-colors",
-                  pathname === link.href
-                    ? "bg-surface-2 text-foreground"
-                    : "text-muted hover:bg-surface-2"
-                )}
-              >
+              <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-surface-2">
                 {link.label}
-              </Link>
+              </a>
             ))}
-            {!generated && (
-              <Link
-                href="/create-avatar"
-                onClick={() => setMenuOpen(false)}
-                className="mt-2 rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-white"
-              >
-                Create Your Avatar
-              </Link>
-            )}
+            {!signedIn && <a href="/login" className="rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-surface-2">Log in</a>}
           </div>
         </div>
       )}

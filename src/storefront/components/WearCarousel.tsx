@@ -1,0 +1,605 @@
+"use client";
+
+import Link from "@/storefront/components/ShopLink";
+import { useEffect, useRef, useState } from "react";
+import type { Product, WearFit, WearSettings } from "@/storefront/lib/data";
+import { cutoutGarment } from "@/storefront/lib/cutout";
+import { money } from "@/storefront/lib/format";
+import { getImageBlob, putImage, useImage } from "@/storefront/lib/images";
+import { toast, updateProduct, updateWear } from "@/storefront/lib/store";
+import { ImageSlot } from "./ImageSlot";
+
+const wearImg = (productId: string) => `wear-g-${productId}`;
+
+/** Aligned garments sit 1:1 on the model photo; nudges start from zero. */
+const ALIGNED_FIT: WearFit = { topPct: 0, scalePct: 100, xPct: 0 };
+
+/** The fit for one garment: its own override, else the shared default for the mode. */
+const fitOf = (wear: WearSettings, id: string): WearFit =>
+  wear.aligned
+    ? (wear.alignedFits?.[id] ?? ALIGNED_FIT)
+    : (wear.fits?.[id] ?? { topPct: wear.topPct, scalePct: wear.scalePct, xPct: wear.xPct });
+
+/** How far the fit can move, per mode. Aligned garments only need small nudges. */
+const rangeOf = (wear: WearSettings) =>
+  wear.aligned
+    ? { top: [-25, 25], scale: [60, 140], x: [-25, 25] }
+    : { top: [-10, 60], scale: [30, 180], x: [-40, 40] };
+
+const clamp = (v: number, [a, b]: number[]) => Math.round(Math.min(b, Math.max(a, v)) * 2) / 2;
+
+/** Saves a fit change for one garment into the draft, clamped to the mode's range. */
+function saveFit(wear: WearSettings, id: string, patch: Partial<WearFit>) {
+  const r = rangeOf(wear);
+  const key = wear.aligned ? "alignedFits" : "fits";
+  const next = { ...fitOf(wear, id), ...patch };
+  next.topPct = clamp(next.topPct, r.top);
+  next.scalePct = clamp(next.scalePct, r.scale);
+  next.xPct = clamp(next.xPct, r.x);
+  if (next.wPct !== undefined) next.wPct = clamp(next.wPct, [40, 250]);
+  if (next.hPct !== undefined) next.hPct = clamp(next.hPct, [40, 250]);
+  updateWear({ [key]: { ...wear[key], [id]: next } });
+}
+
+type DragMode = "move" | "resize" | "w" | "h";
+type Frame = NonNullable<WearSettings["frame"]>;
+const frameOf = (wear: WearSettings): Frame => wear.frame ?? { h: 100, w: 100 };
+
+/** Saves the model photo's frame size, clamped to sensible limits. */
+function saveFrame(wear: WearSettings, patch: Partial<Frame>) {
+  const next = { ...frameOf(wear), ...patch };
+  next.h = clamp(next.h, [50, 170]);
+  next.w = clamp(next.w, [40, 220]);
+  updateWear({ frame: next });
+}
+
+/** Background removal for the current mode: trimmed cut-outs, or full-canvas when aligned. */
+const cutterFor = (wear: WearSettings) => (file: Blob) => cutoutGarment(file, { trim: !wear.aligned });
+
+/** Cuts the neck opening out of a trimmed garment: an ellipse centred on its top edge. */
+function neckMask(neck: number | undefined, w: number): React.CSSProperties {
+  if (!neck) return {};
+  const rx = (w * neck) / 200;
+  const mask = `radial-gradient(${rx}px ${rx * 1.15}px at 50% 0, transparent 97%, #000 100%)`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+}
+
+function useIsMobile() {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 760px)");
+    const on = () => setM(q.matches);
+    on();
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  return m;
+}
+
+/**
+ * Section 5: one model photo; the collection's garments (cut-out PNGs) rotate
+ * onto the upper body. Positions follow wearVals() in the design: the current
+ * garment sits on the model, neighbours fade out to the sides.
+ */
+export function WearCarousel({ wear, products, editable, standalone }: { wear: WearSettings; products: Product[]; editable?: boolean; standalone?: boolean }) {
+  const G = wear.garmentIds.map((id) => products.find((p) => p.id === id && (p.live || editable))).filter((p): p is Product => !!p);
+  const n = G.length;
+  const [wi, setWi] = useState(0);
+  // Editors start paused so the garment being fitted stays put.
+  const [playing, setPlaying] = useState(!editable);
+  useEffect(() => {
+    if (editable) setPlaying(false); // the role is only known after hydration
+  }, [editable]);
+  const mobile = useIsMobile();
+  const idx = n ? ((wi % n) + n) % n : 0;
+
+  useEffect(() => {
+    if (!playing || n < 2) return;
+    const t = setInterval(() => setWi((i) => i + 1), Math.max(1.5, wear.rotateSeconds) * 1000);
+    return () => clearInterval(t);
+  }, [playing, n, wear.rotateSeconds]);
+
+  // Swipe on touch screens.
+  const swipe = useRef<number | null>(null);
+
+  // Admins move the garment by dragging it and resize it from the corner handle.
+  const drag = useRef<{ mode: DragMode; x: number; y: number; f: WearFit; id: string; w0: number; h0: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // Height/width of each trimmed cut-out, so its box (and resize handle) hugs the garment.
+  const [aspects, setAspects] = useState<Record<string, number>>({});
+  const startDrag = (e: React.PointerEvent, mode: DragMode, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = (e.currentTarget as HTMLElement).closest(".wear-layer")?.getBoundingClientRect();
+    drag.current = { mode, x: e.clientX, y: e.clientY, f: fitOf(wear, id), id, w0: box?.width || 1, h0: box?.height || 1 };
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const moveDrag = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (d.mode === "move") {
+      saveFit(wear, d.id, { xPct: d.f.xPct + (dx / mw) * 100, topPct: d.f.topPct + (dy / mh) * 100 });
+    } else if (d.mode === "w") {
+      // Right edge: stretch the width only (the garment is centred, so width changes by 2·dx).
+      const w = d.f.wPct ?? 100;
+      saveFit(wear, d.id, { wPct: (w * (d.w0 + 2 * dx)) / d.w0 });
+    } else if (d.mode === "h") {
+      // Bottom edge: stretch the height only; the top stays put.
+      const h = d.f.hPct ?? 100;
+      saveFit(wear, d.id, { hPct: (h * (d.h0 + dy)) / d.h0 });
+    } else {
+      // The garment is centred, so a corner moved by dx changes the width by 2·dx.
+      const w0 = (mw * d.f.scalePct) / 100;
+      saveFit(wear, d.id, { scalePct: (d.f.scalePct * (w0 + 2 * dx)) / w0 });
+    }
+  };
+  const endDrag = () => {
+    drag.current = null;
+    setDragging(false);
+  };
+  const nudge = (e: React.KeyboardEvent, id: string) => {
+    const f = fitOf(wear, id);
+    const step = e.shiftKey ? 2 : 0.5;
+    const patch: Partial<WearFit> | null =
+      e.key === "ArrowLeft" ? { xPct: f.xPct - step } :
+      e.key === "ArrowRight" ? { xPct: f.xPct + step } :
+      e.key === "ArrowUp" ? { topPct: f.topPct - step } :
+      e.key === "ArrowDown" ? { topPct: f.topPct + step } :
+      e.key === "+" || e.key === "=" ? { scalePct: f.scalePct + step * 2 } :
+      e.key === "-" || e.key === "_" ? { scalePct: f.scalePct - step * 2 } : null;
+    if (!patch) return;
+    e.preventDefault();
+    saveFit(wear, id, patch);
+  };
+
+  // Mouse wheel over the garment resizes it (needs a non-passive listener to stop page scroll).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const wheelTarget = useRef<{ wear: WearSettings; id?: string }>({ wear });
+  wheelTarget.current = { wear, id: editable ? G[idx]?.id : undefined };
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !editable) return;
+    const onWheel = (e: WheelEvent) => {
+      const { wear: w, id } = wheelTarget.current;
+      if (!id || !(e.target as HTMLElement).closest(".wear-edit")) return;
+      e.preventDefault();
+      saveFit(w, id, { scalePct: fitOf(w, id).scalePct + (e.deltaY < 0 ? 1 : -1) });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [editable]);
+
+  // The model frame takes the model photo's shape, then the admin's height and width
+  // (percent of the default height and of the photo's own width), capped to the stage.
+  const [modelAspect, setModelAspect] = useState(1.5);
+  const frame = frameOf(wear);
+  const mh = Math.round((mobile ? 420 : 660) * (frame.h / 100));
+  const mw = Math.round(Math.min(mobile ? 370 : 1100, (mh / modelAspect) * (frame.w / 100)));
+  // Once the frame's shape differs from the photo's, crop or stretch; garments made on
+  // the photo (aligned) follow the model photo exactly.
+  const reshaped = Math.abs(frame.w - 100) > 0.5;
+  const modelFit: "contain" | "cover" | "fill" = !reshaped ? "contain" : frame.fill === "stretch" ? "fill" : "cover";
+
+  // Admins resize the frame from its right and bottom edge handles.
+  const fdrag = useRef<{ edge: "e" | "s"; x: number; y: number; f: Frame; w0: number; h0: number } | null>(null);
+  const [fEdge, setFEdge] = useState<"e" | "s" | null>(null);
+  const startFrame = (e: React.PointerEvent, edge: "e" | "s") => {
+    e.preventDefault();
+    e.stopPropagation();
+    fdrag.current = { edge, x: e.clientX, y: e.clientY, f: frame, w0: mw, h0: mh };
+    setFEdge(edge);
+    setPlaying(false);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const moveFrame = (e: React.PointerEvent) => {
+    const d = fdrag.current;
+    if (!d) return;
+    if (d.edge === "e") {
+      // The frame is centred, so moving the right edge by dx changes the width by 2·dx.
+      saveFrame(wear, { w: (d.f.w * (d.w0 + 2 * (e.clientX - d.x))) / d.w0 });
+    } else {
+      // Height grows downwards; keep the width in proportion so only the height changes shape.
+      const h = (d.f.h * (d.h0 + (e.clientY - d.y))) / d.h0;
+      saveFrame(wear, { h, w: (d.f.w * d.f.h) / h });
+    }
+  };
+  const endFrame = () => {
+    fdrag.current = null;
+    setFEdge(null);
+  };
+  const [mTop, side] = mobile ? [16, 250] : [40, 420];
+  const imgClass = wear.colorPhotos ? "" : "grayscale";
+  const cur = G[idx];
+
+  const layers = G.map((p, i) => {
+    const rel = (i - idx + n) % n;
+    const pos = rel === 0 ? 0 : rel === 1 ? 1 : rel === n - 1 ? -1 : rel <= n / 2 ? 2 : -2;
+    const f = fitOf(wear, p.id);
+    const w0 = (mw * f.scalePct) / 100;
+    // Trimmed cut-outs are pinned to the top of a tall box, so width sets the size
+    // and the collar lands on the collar line. Aligned garments share the model
+    // photo's canvas, so their box is the model frame itself. Width and height can
+    // then be stretched on their own.
+    const sw = (f.wPct ?? 100) / 100;
+    const sh = (f.hPct ?? 100) / 100;
+    const stretched = sw !== 1 || sh !== 1;
+    const w = w0 * sw;
+    // Flat shots are cropped to the garment itself, so the box hugs it and stretching acts on the garment.
+    const h = (wear.aligned ? (mh * f.scalePct) / 100 : w0 * (aspects[p.id] ?? 1.1)) * sh;
+    const cx = (f.xPct / 100) * mw;
+    const editing = editable && pos === 0;
+    return (
+      <div
+        key={p.id}
+        className={`wear-layer ${imgClass} ${editing ? "wear-edit" : ""} ${editing && dragging ? "is-dragging" : ""}`}
+        aria-hidden={pos !== 0}
+        {...(editing && {
+          tabIndex: 0,
+          role: "group",
+          "aria-label": `${p.name}: drag to move, drag the corner or scroll to resize, arrow keys to nudge`,
+          onPointerDown: (e: React.PointerEvent) => startDrag(e, "move", p.id),
+          onPointerMove: moveDrag,
+          onPointerUp: endDrag,
+          onPointerCancel: endDrag,
+          onKeyDown: (e: React.KeyboardEvent) => nudge(e, p.id),
+        })}
+        style={{
+          top: mTop + (mh * f.topPct) / 100, width: w, height: h, marginLeft: -w / 2 + cx,
+          zIndex: pos === 0 ? 3 : 1,
+          transform: `translateX(${pos * side}px) scale(${pos === 0 ? 1 : 0.82})`,
+          opacity: pos === 0 ? 1 : Math.abs(pos) === 1 ? 0.28 : 0,
+          filter: pos === 0 ? "none" : "blur(3px)",
+          pointerEvents: editing ? "auto" : "none",
+          ...(editing && dragging ? { transition: "none" } : {}),
+          ...(wear.aligned ? {} : neckMask(f.neck, w)),
+        }}
+      >
+        {wear.aligned ? (
+          <ImageSlot
+            id={wearImg(p.id)}
+            src={wear.images?.[p.id]}
+            fit={stretched && modelFit !== "cover" ? "fill" : modelFit}
+            anchorTop={modelFit === "cover"}
+            placeholder={editable ? `garment photo ${i + 1}` : ""}
+            alt={p.name}
+          />
+        ) : (
+          <GarmentImg id={wearImg(p.id)} src={wear.images?.[p.id]} alt={p.name} placeholder={editable ? `garment photo ${i + 1}` : ""} onAspect={(a) => setAspects((m) => (m[p.id] === a ? m : { ...m, [p.id]: a }))} />
+        )}
+        {editing && ([["resize", "wear-handle"], ["w", "wear-handle e"], ["h", "wear-handle s"]] as const).map(([mode, cls]) => (
+          <span
+            key={mode}
+            className={cls}
+            aria-hidden
+            title={mode === "w" ? "Drag to stretch the width" : mode === "h" ? "Drag to stretch the height" : "Drag to resize"}
+            onPointerDown={(e) => startDrag(e, mode, p.id)}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          />
+        ))}
+      </div>
+    );
+  });
+
+  const counter = `${String(idx + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")}`;
+
+  return (
+    <section aria-roledescription="carousel" aria-label={wear.title}>
+      {mobile && (
+        <div style={{ padding: "16px 16px 0" }}>
+          <span className="display" style={{ fontSize: 44, lineHeight: 0.86 }}>{wear.title}</span>
+        </div>
+      )}
+      <div
+        ref={stageRef}
+        className="wear-stage"
+        style={{ height: mTop + mh + (mobile ? 84 : 60), ...(standalone || mobile ? {} : { borderTop: "2px solid var(--color-divider)" }) }}
+        onPointerDown={(e) => e.pointerType !== "mouse" && (swipe.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (swipe.current === null) return;
+          const dx = e.clientX - swipe.current;
+          swipe.current = null;
+          if (Math.abs(dx) > 40) setWi((i) => i + (dx < 0 ? 1 : -1 + n));
+        }}
+      >
+        {!mobile && (
+          <div className="wear-title">
+            <span className="display">{wear.title}</span>
+            <span>Designed for movement. Built for every moment.</span>
+          </div>
+        )}
+        <div className={`${imgClass} ph`} style={{ position: "absolute", left: "50%", top: mTop, width: mw, height: mh, marginLeft: -mw / 2, zIndex: 2 }}>
+          <ImageSlot
+            id="wear-model"
+            fit={modelFit}
+            anchorTop={modelFit === "cover"}
+            src={wear.images?.model}
+            placeholder={editable ? "full-body model photo" : "model photo"}
+            editable={editable}
+            alt="Model"
+            onAspect={(a) => setModelAspect((m) => (Math.abs(m - a) < 0.001 ? m : a))}
+          />
+        </div>
+        {layers}
+        {editable && (
+          <>
+            <div className="frame-box" style={{ left: "50%", top: mTop, width: mw, height: mh, marginLeft: -mw / 2 }} aria-hidden />
+            {(["e", "s"] as const).map((edge) => (
+              <span
+                key={edge}
+                className={`frame-handle ${edge} ${fEdge === edge ? "on" : ""}`}
+                title={edge === "e" ? "Drag to change the photo's width" : "Drag to change the photo's height"}
+                aria-hidden
+                style={edge === "e" ? { left: `calc(50% + ${mw / 2}px)`, top: mTop + mh * 0.22 } : { left: `calc(50% - ${mw * 0.3}px)`, top: mTop + mh }}
+                onPointerDown={(e) => startFrame(e, edge)}
+                onPointerMove={moveFrame}
+                onPointerUp={endFrame}
+                onPointerCancel={endFrame}
+              />
+            ))}
+          </>
+        )}
+        {cur && !mobile && (
+          <div className="wear-now" aria-live="polite">
+            <span className="kicker">Now wearing</span>
+            <span className="nm">{cur.name}</span>
+            <span style={{ fontSize: 15 }}>{money(cur.price)}</span>
+            <Link href={`/product/${cur.id}`} className="btn btn-primary row"><span>Shop this piece</span><span>→</span></Link>
+          </div>
+        )}
+        {n > 1 && (
+          <div className="wear-ctl">
+            <button className="btn btn-ghost" style={{ height: mobile ? 44 : 32, padding: "0 10px" }} onClick={() => setWi(idx - 1 + n)} aria-label="Previous garment">←</button>
+            <span style={{ fontWeight: 700 }}>{counter}</span>
+            {!mobile && (
+              <div className="wear-dots">
+                {G.map((p, i) => (
+                  <button key={p.id} aria-label={`Show ${p.name}`} onClick={() => setWi(i)} style={{ width: i === idx ? 28 : 10, background: i === idx ? "var(--color-text)" : "var(--color-neutral-300)" }} />
+                ))}
+              </div>
+            )}
+            <button className="btn btn-ghost" style={{ height: mobile ? 44 : 32, padding: "0 10px" }} onClick={() => setWi(idx + 1)} aria-label="Next garment">→</button>
+            {!mobile && <button className="btn btn-ghost h32" onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Play"}</button>}
+          </div>
+        )}
+      </div>
+      {cur && mobile && (
+        <div className="wear-m-foot">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ fontWeight: 800, fontSize: 20 }}>{cur.name}</span><span>{money(cur.price)}</span></div>
+          <Link href={`/product/${cur.id}`} className="btn btn-primary row h52"><span>Shop this piece</span><span>→</span></Link>
+        </div>
+      )}
+      {editable && <WearTools wear={wear} products={products} garments={G} idx={idx} onPick={(i) => { setWi(i); setPlaying(false); }} onEdit={() => setPlaying(false)} />}
+    </section>
+  );
+}
+
+/** The fit bar and garment strip under the stage in 5a. Admin-only; edits go to the draft. */
+function WearTools({ wear, products, garments, idx, onPick, onEdit }: { wear: WearSettings; products: Product[]; garments: Product[]; idx: number; onPick: (i: number) => void; onEdit: () => void }) {
+  const addable = products.filter((p) => !wear.garmentIds.includes(p.id) && p.category !== "accessories");
+  const cur = garments[idx];
+  const f = cur ? fitOf(wear, cur.id) : fitOf(wear, "");
+  const key = wear.aligned ? "alignedFits" : "fits";
+  const own = cur ? wear[key]?.[cur.id] : undefined;
+  const [working, setWorking] = useState<string | null>(null);
+  const frame = frameOf(wear);
+
+  const r = rangeOf(wear);
+  const setFit = (patch: Partial<WearFit>) => {
+    if (!cur) return;
+    onEdit();
+    saveFit(wear, cur.id, patch);
+  };
+  const applyToAll = () => updateWear({ [key]: Object.fromEntries(garments.map((g) => [g.id, f])) });
+  const reset = () => {
+    if (!cur || !wear[key]) return;
+    const { [cur.id]: _drop, ...rest } = wear[key]!;
+    updateWear({ [key]: rest });
+  };
+
+  /** Re-run background removal on a photo uploaded before it existed. */
+  const recut = async (p: Product) => {
+    const blob = await getImageBlob(wearImg(p.id));
+    if (!blob) return toast(`Add a photo for ${p.name} first.`);
+    setWorking(p.id);
+    try {
+      await putImage(wearImg(p.id), await cutterFor(wear)(blob));
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  return (
+    <div className="wear-tools">
+      <div className="fitbar">
+        <div className="field">
+          <label htmlFor="wear-mode">Garment photos</label>
+          <select id="wear-mode" className="input" value={wear.aligned ? "aligned" : "overlay"} onChange={(e) => updateWear({ aligned: e.target.value === "aligned" })}>
+            <option value="overlay">Flat product shots (trimmed and fitted)</option>
+            <option value="aligned">Made on the model photo (same size, 1:1)</option>
+          </select>
+        </div>
+        <div className="fit-for"><span className="label">Fit on photo</span><b>{cur?.name ?? "—"}</b></div>
+        <span className="muted" style={{ fontSize: 12 }}>On the photo: drag the garment to move it, drag the red corner or scroll to resize, the red handles on its right and bottom edges to stretch its width or height (or type the numbers below). Arrow keys nudge, + and − resize (hold Shift for bigger steps).</span>
+        <label className="slider"><span className="t"><span>{wear.aligned ? "Up / down" : "Collar position"}</span><b>{f.topPct}%</b></span><input type="range" min={r.top[0]} max={r.top[1]} step={0.5} value={f.topPct} onChange={(e) => setFit({ topPct: +e.target.value })} /></label>
+        <label className="slider"><span className="t"><span>{wear.aligned ? "Size" : "Garment width"}</span><b>{f.scalePct}%</b></span><input type="range" min={r.scale[0]} max={r.scale[1]} step={0.5} value={f.scalePct} onChange={(e) => setFit({ scalePct: +e.target.value })} /></label>
+        <label className="slider"><span className="t"><span>Side-to-side</span><b>{f.xPct}</b></span><input type="range" min={r.x[0]} max={r.x[1]} step={0.5} value={f.xPct} onChange={(e) => setFit({ xPct: +e.target.value })} /></label>
+        <label className="slider"><span className="t"><span>Stretch width</span><PctBox label="Garment width" value={f.wPct ?? 100} min={40} max={250} onCommit={(v) => setFit({ wPct: v })} /></span><input type="range" min={40} max={250} step={1} value={f.wPct ?? 100} onChange={(e) => setFit({ wPct: +e.target.value })} /></label>
+        <label className="slider"><span className="t"><span>Stretch height</span><PctBox label="Garment height" value={f.hPct ?? 100} min={40} max={250} onCommit={(v) => setFit({ hPct: v })} /></span><input type="range" min={40} max={250} step={1} value={f.hPct ?? 100} onChange={(e) => setFit({ hPct: +e.target.value })} /></label>
+        {!wear.aligned && (
+          <label className="slider"><span className="t"><span>Neck opening</span><b>{f.neck ? `${f.neck}%` : "Off"}</b></span><input type="range" min={0} max={60} value={f.neck ?? 0} onChange={(e) => setFit({ neck: +e.target.value })} /></label>
+        )}
+        <div className="fit-acts">
+          <button className="btn btn-secondary h32" onClick={applyToAll}>Use this fit for all</button>
+          {own && <button className="btn btn-ghost h32" onClick={reset}>Reset</button>}
+        </div>
+        <span className="label" style={{ marginTop: 8 }}>Model photo size</span>
+        <label className="slider"><span className="t"><span>Height</span><PctBox label="Photo height" value={frame.h} min={50} max={170} onCommit={(v) => (onEdit(), saveFrame(wear, { h: v }))} /></span><input type="range" min={50} max={170} step={1} value={frame.h} onChange={(e) => (onEdit(), saveFrame(wear, { h: +e.target.value }))} /></label>
+        <label className="slider"><span className="t"><span>Width</span><PctBox label="Photo width" value={frame.w} min={40} max={220} onCommit={(v) => (onEdit(), saveFrame(wear, { w: v }))} /></span><input type="range" min={40} max={220} step={1} value={frame.w} onChange={(e) => (onEdit(), saveFrame(wear, { w: +e.target.value }))} /></label>
+        {Math.abs(frame.w - 100) > 0.5 && (
+          <div className="field">
+            <label htmlFor="wear-fill">When the width doesn&rsquo;t match the photo</label>
+            <select id="wear-fill" className="input" value={frame.fill ?? "crop"} onChange={(e) => saveFrame(wear, { fill: e.target.value as "crop" | "stretch" })}>
+              <option value="crop">Crop the photo to fill the frame</option>
+              <option value="stretch">Stretch the photo to fill the frame</option>
+            </select>
+          </div>
+        )}
+        <span className="muted" style={{ fontSize: 12 }}>Or drag the dark handles on the photo frame (right edge near the top, bottom edge to the left); the red ones belong to the garment. 100% is the photo&rsquo;s own shape.</span>
+        {wear.frame && <div className="fit-acts"><button className="btn btn-ghost h32" onClick={() => updateWear({ frame: undefined })}>Reset photo size</button></div>}
+        <label className="slider"><span className="t"><span>Rotate every</span><b>{wear.rotateSeconds}s</b></span><input type="range" min={2} max={8} step={0.5} value={wear.rotateSeconds} onChange={(e) => updateWear({ rotateSeconds: +e.target.value })} /></label>
+        <label className="radio"><input type="checkbox" checked={wear.colorPhotos} onChange={(e) => updateWear({ colorPhotos: e.target.checked })} /><span className="dot" />Show these photos in colour</label>
+        <div className="field"><label htmlFor="wear-title">Title</label><input id="wear-title" className="input" value={wear.title} onChange={(e) => updateWear({ title: e.target.value })} /></div>
+      </div>
+      <div className="rot">
+        <span className="label">Garments in rotation · pick one to fit it</span>
+        <div className="wear-cells">
+          {garments.map((p, i) => (
+            <div key={p.id} className={i === idx ? "cur" : undefined}>
+              <div className="ph"><ImageSlot id={wearImg(p.id)} src={wear.images?.[p.id]} fit="contain" process={cutterFor(wear)} placeholder="drop photo" editable alt={p.name} /></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 4, fontSize: 12 }}>
+                <button className="unbtn" style={{ fontWeight: 600, textAlign: "left" }} onClick={() => onPick(i)}>{p.name}</button>
+                <button className="unbtn" aria-label={`Remove ${p.name} from rotation`} onClick={() => updateWear({ garmentIds: wear.garmentIds.filter((x) => x !== p.id) })}>×</button>
+              </div>
+              <div className="acts">
+                <button className="unbtn u" onClick={() => onPick(i)}>{i === idx ? "Fitting" : "Fit"}</button>
+                <button className="unbtn u" disabled={working === p.id} onClick={() => void recut(p)}>{working === p.id ? "Working…" : "Remove bg"}</button>
+              </div>
+              {!p.live && (
+                <button className="tag tag-outline" style={{ alignSelf: "flex-start", cursor: "pointer" }} onClick={() => updateProduct(p.id, { live: true })} title="Customers don't see hidden products. Click to make it live.">
+                  Hidden · make live
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {addable.length > 0 && (
+          <div className="field" style={{ maxWidth: 320 }}>
+            <label htmlFor="wear-add">Add a garment</label>
+            <select id="wear-add" className="input" value="" onChange={(e) => e.target.value && updateWear({ garmentIds: [...wear.garmentIds, e.target.value] })}>
+              <option value="">Choose a product…</option>
+              {addable.map((p) => <option key={p.id} value={p.id}>{p.name}{p.live ? "" : " (hidden)"}</option>)}
+            </select>
+          </div>
+        )}
+        <span className="muted" style={{ fontSize: 12 }}>
+          {wear.aligned
+            ? "Each garment photo must be the same size as the model photo, with the garment exactly where it sits on her body and everything else plain white. The white is removed automatically, including the neck opening. Photos save straight away; fit settings go live when you publish. Hidden products only show here, not to customers."
+            : "Upload flat product shots on a plain white or grey background: the background is removed and the photo is trimmed to the garment, so every piece lines up at the collar. Use Neck opening to cut the inside of the collar away. Photos save straight away; fit settings go live when you publish. Hidden products only show here, not to customers."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Type an exact percentage; applies on Enter or when the box loses focus. */
+function PctBox({ value, min, max, label, onCommit }: { value: number; min: number; max: number; label: string; onCommit: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = Number(text.replace(",", "."));
+    if (Number.isFinite(n) && text.trim() !== "") onCommit(Math.min(max, Math.max(min, n)));
+    else setText(String(value));
+  };
+  return (
+    <span className="pct-box">
+      <input
+        className="input num"
+        inputMode="decimal"
+        aria-label={`${label} (%)`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+      />
+      %
+    </span>
+  );
+}
+
+/** Where the garment actually is in a photo: the box round its non-transparent pixels, as fractions. */
+type Bounds = { x: number; y: number; w: number; h: number; ratio: number };
+const boundsCache = new Map<string, Bounds>();
+
+function measure(img: HTMLImageElement): Bounds {
+  const S = 400;
+  const k = Math.min(1, S / Math.max(img.naturalWidth, img.naturalHeight));
+  const W = Math.max(1, Math.round(img.naturalWidth * k));
+  const H = Math.max(1, Math.round(img.naturalHeight * k));
+  const full = { x: 0, y: 0, w: 1, h: 1, ratio: img.naturalHeight / img.naturalWidth };
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return full;
+  ctx.drawImage(img, 0, 0, W, H);
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, W, H).data;
+  } catch {
+    return full;
+  }
+  let [x0, y0, x1, y1] = [W, H, -1, -1];
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (data[(y * W + x) * 4 + 3] > 16) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+  if (x1 < 0) return full;
+  const b = { x: x0 / W, y: y0 / H, w: (x1 - x0 + 1) / W, h: (y1 - y0 + 1) / H };
+  return { ...b, ratio: (b.h * img.naturalHeight) / (b.w * img.naturalWidth) };
+}
+
+/**
+ * A flat garment shot cropped to the garment: transparent margins are cut away so the
+ * layer's box (and its handles) sit on the garment's edges, and the photo stretches to
+ * whatever width and height the box is given.
+ */
+function GarmentImg({ id, src, alt, placeholder, onAspect }: { id: string; src?: string; alt: string; placeholder: string; onAspect: (ratio: number) => void }) {
+  const uploaded = useImage(id);
+  const url = uploaded ?? src ?? null;
+  const [b, setB] = useState<Bounds | null>(() => (url ? boundsCache.get(url) ?? null : null));
+  const report = useRef(onAspect);
+  report.current = onAspect;
+  useEffect(() => {
+    if (!url) return;
+    const hit = boundsCache.get(url);
+    if (hit) {
+      setB(hit);
+      report.current(hit.ratio);
+      return;
+    }
+    let alive = true;
+    const img = new Image();
+    img.onload = () => {
+      const m = measure(img);
+      boundsCache.set(url, m);
+      if (!alive) return;
+      setB(m);
+      report.current(m.ratio);
+    };
+    img.src = url;
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  if (!url) return placeholder ? <span className="slot"><span className="slot-empty">{placeholder}</span></span> : null;
+  if (!b) return null;
+  return (
+    <span className="slot" style={{ overflow: "hidden" }}>
+      <img
+        src={url}
+        alt={alt}
+        draggable={false}
+        style={{ position: "absolute", maxWidth: "none", width: `${100 / b.w}%`, height: `${100 / b.h}%`, left: `${(-b.x / b.w) * 100}%`, top: `${(-b.y / b.h) * 100}%`, objectFit: "fill" }}
+      />
+    </span>
+  );
+}
