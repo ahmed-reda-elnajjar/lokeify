@@ -1,7 +1,7 @@
 import { one, run, tx } from "@/server/db";
 import { hashPassword, newId } from "@/server/crypto";
 import { startMerchantSession, validEmail } from "@/server/auth";
-import { ensureSeeded, demoProducts, demoTheme } from "@/server/seed";
+import { ensureSeeded, demoProducts, demoTheme, seedDemoImages } from "@/server/seed";
 import { createShop, slugAvailable } from "@/server/shops";
 import { body, fail, ok } from "@/server/http";
 import { CURRENCIES, slugify } from "@/shared/shop";
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
     if (e instanceof Error && /UNIQUE/i.test(e.message)) return fail("That email or store address was just taken. Try another.");
     throw e;
   }
+  if (b.demo) await seedDemoImages(shop.id);
   await startMerchantSession(merchantId);
   return ok({ slug: shop.slug });
 }

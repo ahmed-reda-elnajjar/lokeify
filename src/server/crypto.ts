@@ -3,13 +3,17 @@
 // random value generated once and kept in the database.
 
 import crypto from "node:crypto";
-import { storedSecret } from "./db";
+import { storageMode, storedSecret } from "./db";
 
 let key: Promise<Buffer> | null = null;
 function secret(): Promise<Buffer> {
   if (!key) {
     const env = process.env.LOKEIFY_SECRET;
-    key = (env && env.length >= 16 ? Promise.resolve(env) : storedSecret())
+    // Demo mode on Vercel (no database connected): every serverless instance has its own
+    // throwaway database, so the secret can't live there or instances would reject each
+    // other's sessions. Derive one per project instead; set LOKEIFY_SECRET for real use.
+    const demo = storageMode() === "ephemeral" ? `lokeify-demo:${process.env.VERCEL_PROJECT_ID ?? ""}:${process.env.VERCEL_GIT_REPO_ID ?? ""}` : null;
+    key = (env && env.length >= 16 ? Promise.resolve(env) : demo ? Promise.resolve(demo) : storedSecret())
       .then((s) => crypto.createHash("sha256").update(s).digest())
       .catch((e) => {
         key = null;

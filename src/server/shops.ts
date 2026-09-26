@@ -99,9 +99,9 @@ export async function slugAvailable(slug: string) {
 
 export async function createShop(
   ownerId: string,
-  input: { name: string; slug: string; currency?: string; theme?: ThemeContent; settings?: Partial<ShopSettings>; products?: Product[] },
+  input: { id?: string; name: string; slug: string; currency?: string; theme?: ThemeContent; settings?: Partial<ShopSettings>; products?: Product[] },
 ): Promise<ShopRow> {
-  const id = newId("shp_");
+  const id = input.id ?? newId("shp_");
   const now = Date.now();
   const settings = { ...defaultSettings(input.currency), ...input.settings };
   const theme = input.theme ?? defaultTheme(input.name);
@@ -216,8 +216,8 @@ export const customerByEmail = async (shopId: string, email: string) =>
 export const customerById = async (shopId: string, id: string) =>
   (await one<CustomerRow>(`SELECT * FROM customers WHERE shop_id = ? AND id = ?`, shopId, id)) ?? null;
 
-export async function createCustomer(shopId: string, input: { email: string; name: string; passwordHash: string }) {
-  const id = newId("cus_");
+export async function createCustomer(shopId: string, input: { id?: string; email: string; name: string; passwordHash: string }) {
+  const id = input.id ?? newId("cus_");
   await run(
     `INSERT INTO customers (id, shop_id, email, name, password, fit, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     id, shopId, input.email.trim().toLowerCase(), input.name.trim(), input.passwordHash, Date.now(),

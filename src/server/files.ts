@@ -30,7 +30,8 @@ export const fileUrl = (shopId: string, rel: string) => `/files/${shopId}/${name
 /** slot → public URL for everything the shop has uploaded. */
 export async function fileRegistry(shopId: string): Promise<Record<string, string>> {
   const rows = await all<{ slot: string; path: string; updated_at: number }>(`SELECT slot, path, updated_at FROM files WHERE shop_id = ?`, shopId);
-  return Object.fromEntries(rows.map((r) => [r.slot, `${fileUrl(shopId, r.path)}?v=${r.updated_at}`]));
+  // A path starting with "/" is a file shipped in public/ (the demo store's photos).
+  return Object.fromEntries(rows.map((r) => [r.slot, r.path.startsWith("/") ? r.path : `${fileUrl(shopId, r.path)}?v=${r.updated_at}`]));
 }
 
 export interface UploadPiece {
@@ -158,6 +159,7 @@ export async function openFile(shopId: string, name: string): Promise<{ mime: st
 }
 
 function unlinkLegacy(rel: string) {
+  if (rel.startsWith("/")) return; // shipped in public/, not an upload
   try {
     const p = path.join(LEGACY_UPLOADS, rel);
     if (p.startsWith(LEGACY_UPLOADS)) fs.unlinkSync(p);

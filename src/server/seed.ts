@@ -8,21 +8,57 @@ import { hashPassword, newId } from "./crypto";
 import { createCustomer, createShop, defaultSettings, placeOrder, shopBySlug, type ShopRow } from "./shops";
 import { SEED_HERO, SEED_PRODUCTS, SEED_SECTIONS, SEED_WEAR, SEED_TRENDING, type Product, type WearSettings } from "@/storefront/lib/data";
 import type { ThemeContent } from "@/shared/shop";
+import SNAPSHOT from "./demo-snapshot.json";
 
+// The CRATE store exactly as its owner set it up (catalogue, home page, lookbook,
+// product photos, try-on model photos), copied from crate-store with its /snapshot
+// tool. Photos are in public/demo/crate/snapshot; the rest of the pictures in
+// public/demo/crate.
+const SNAP = SNAPSHOT as unknown as {
+  content: { products: Product[]; sections: ThemeContent["sections"]; hero: ThemeContent["hero"]; wear: WearSettings } | null;
+  images: Record<string, string>;
+};
 
-const demoPhoto = (p?: string) => (p ? `/demo/crate${p}` : undefined);
+// Fixed ids, so every server (and every serverless instance) builds the same demo store.
+const DEMO = { merchant: "mer_demo", shop: "shp_crate", customer: "cus_sam" };
+
+/** A path from crate-store's public folder, as served here. */
+const demoPath = (p?: string) => (p && p.startsWith("/") && !p.startsWith("/demo/") ? `/demo/crate${p}` : p);
+
+/** Shop photos by slot ("hero", "p-<id>-<n>", "wear-g-<id>", "tryon-model-male", …). */
+export function demoImages(): Record<string, string> {
+  return Object.fromEntries(Object.entries(SNAP.images ?? {}).map(([slot, p]) => [slot, demoPath(p)!]));
+}
 
 /** The CRATE catalogue with its photos pointing at public/demo/crate. */
 export function demoProducts(): Product[] {
-  return SEED_PRODUCTS.map((p) => ({ ...p, photo: demoPhoto(p.photo) }));
+  const images = demoImages();
+  return (SNAP.content?.products ?? SEED_PRODUCTS).map((p) => {
+    const shots = Object.keys(images).filter((k) => new RegExp(`^p-${p.id}-\\d+$`).test(k)).length;
+    return { ...p, photo: demoPath(p.photo), ...(shots ? { images: Math.max(p.images ?? 0, shots) } : {}) };
+  });
 }
 
 export function demoTheme(): ThemeContent {
+  const src = SNAP.content ?? { sections: SEED_SECTIONS, hero: SEED_HERO, wear: SEED_WEAR };
   const wear: WearSettings = {
-    ...SEED_WEAR,
-    images: Object.fromEntries(Object.entries(SEED_WEAR.images ?? {}).map(([k, v]) => [k, `/demo/crate${v}`])),
+    ...src.wear,
+    images: Object.fromEntries(Object.entries(src.wear.images ?? {}).map(([k, v]) => [k, demoPath(v)!])),
   };
-  return { sections: SEED_SECTIONS, hero: SEED_HERO, wear };
+  return { sections: src.sections, hero: src.hero, wear };
+}
+
+const MIME: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", glb: "model/gltf-binary" };
+
+/** Registers the demo photos as the shop's files (they are served from public/, not the database). */
+export async function seedDemoImages(shopId: string) {
+  const now = Date.now();
+  for (const [slot, url] of Object.entries(demoImages())) {
+    await run(
+      `INSERT INTO files (shop_id, slot, path, mime, size, chunks, updated_at) VALUES (?, ?, ?, ?, 0, 0, ?) ON CONFLICT(shop_id, slot) DO NOTHING`,
+      shopId, slot, url, MIME[url.split(".").pop()!.toLowerCase()] ?? "image/jpeg", now,
+    );
+  }
 }
 
 function nextSaturday10Cet() {
@@ -55,11 +91,12 @@ async function seed() {
     const claim = await run(`INSERT INTO meta (key, value) VALUES ('seeded', ?) ON CONFLICT(key) DO NOTHING`, String(Date.now()));
     if (!claim.changes) return;
 
-    const merchantId = newId("mer_");
+    const merchantId = DEMO.merchant;
     await run(`INSERT INTO merchants (id, email, name, password, created_at) VALUES (?, ?, ?, ?, ?)`, merchantId, "demo@lokeify.com", "Crate Team", hashPassword("demo1234"), Date.now());
 
     const drop = nextSaturday10Cet();
     const shop = await createShop(merchantId, {
+      id: DEMO.shop,
       name: "CRATE",
       slug: "crate",
       currency: "USD",
@@ -77,12 +114,13 @@ async function seed() {
         trending: SEED_TRENDING,
       },
     });
+    await seedDemoImages(shop.id);
     await seedOrders(shop);
   });
 }
 
 async function seedOrders(shop: ShopRow) {
-  const sam = await createCustomer(shop.id, { email: "sam@example.com", name: "Sam Okafor", passwordHash: hashPassword("demo1234") });
+  const sam = await createCustomer(shop.id, { id: DEMO.customer, email: "sam@example.com", name: "Sam Okafor", passwordHash: hashPassword("demo1234") });
   const address = { first: "Sam", last: "Okafor", address: "Torstraße 12", city: "Berlin", postcode: "10119", country: "Germany" };
   const orders: [string, string, number, string][] = [
     ["480gsm-hoodie", "L", 21, "Delivered"],

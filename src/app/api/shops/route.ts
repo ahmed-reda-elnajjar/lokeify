@@ -1,5 +1,5 @@
 import { currentMerchant } from "@/server/auth";
-import { demoProducts, demoTheme } from "@/server/seed";
+import { demoProducts, demoTheme, seedDemoImages } from "@/server/seed";
 import { createShop, slugAvailable } from "@/server/shops";
 import { body, fail, ok, unauthorized } from "@/server/http";
 import { CURRENCIES, slugify } from "@/shared/shop";
@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       name: storeName, slug, currency,
       ...(b?.demo ? { products: demoProducts(), theme: { ...demoTheme(), hero: { ...demoTheme().hero, title: storeName.toUpperCase() } } } : {}),
     });
+    if (b?.demo) await seedDemoImages(shop.id);
     return ok({ slug: shop.slug });
   } catch (e) {
     if (e instanceof Error && /UNIQUE/i.test(e.message)) return fail(`The address /s/${slug} was just taken. Try another.`);
