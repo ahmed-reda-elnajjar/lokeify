@@ -1,6 +1,7 @@
+import { storeFor } from "@/server/http";
 import { NextResponse } from "next/server";
 import { getProvider, ProviderError, type GarmentCategory } from "@/server/tryon/provider";
-import { secretsOf, settingsOf, shopBySlug, type ShopRow } from "@/server/shops";
+import { secretsOf, settingsOf, type ShopRow } from "@/server/shops";
 
 // Photorealistic try-on for one shop. The browser sends the person photo and 1–3
 // garment photos (as data: URLs, already downscaled); garments are applied one
@@ -35,7 +36,7 @@ async function providerFor(shop: ShopRow) {
 type Ctx = { params: Promise<{ shop: string }> };
 
 export async function GET(req: Request, { params }: Ctx) {
-  const shop = await shopBySlug((await params).shop);
+  const shop = await storeFor(params);
   if (!shop) return NextResponse.json({ error: "Store not found." }, { status: 404 });
   const p = await providerFor(shop);
   const limit = settingsOf(shop).tryonDailyLimit;
@@ -48,7 +49,7 @@ const isImageRef = (s: unknown): s is string =>
   typeof s === "string" && s.length < MAX_URL_BYTES && (/^data:image\/(png|jpe?g|webp);base64,/.test(s) || /^https:\/\//.test(s));
 
 export async function POST(req: Request, { params }: Ctx) {
-  const shop = await shopBySlug((await params).shop);
+  const shop = await storeFor(params);
   if (!shop) return NextResponse.json({ error: "Store not found." }, { status: 404 });
   const provider = await providerFor(shop);
   if (!provider) return NextResponse.json({ error: "This store hasn't set up photo try-on yet." }, { status: 501 });

@@ -1,10 +1,10 @@
 import { startCustomerSession, validEmail } from "@/server/auth";
 import { hashPassword } from "@/server/crypto";
-import { body, fail, ok } from "@/server/http";
-import { createCustomer, customerByEmail, shopBySlug } from "@/server/shops";
+import { body, fail, ok, storeFor } from "@/server/http";
+import { createCustomer, customerByEmail } from "@/server/shops";
 
 export async function POST(req: Request, { params }: { params: Promise<{ shop: string }> }) {
-  const shop = await shopBySlug((await params).shop);
+  const shop = await storeFor(params);
   if (!shop) return fail("Store not found.", 404);
   const b = await body<{ name?: string; email?: string; password?: string }>(req);
   const name = (b?.name ?? "").trim();

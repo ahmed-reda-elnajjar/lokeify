@@ -1,12 +1,12 @@
 import { currentCustomer, validEmail } from "@/server/auth";
-import { body, fail, ok } from "@/server/http";
-import { OrderError, ordersOfCustomer, placeOrder, shopBySlug, type PlaceOrderInput } from "@/server/shops";
+import { body, fail, ok, storeFor } from "@/server/http";
+import { OrderError, ordersOfCustomer, placeOrder, type PlaceOrderInput } from "@/server/shops";
 import type { OrderAddress } from "@/shared/shop";
 
 type Ctx = { params: Promise<{ shop: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
-  const shop = await shopBySlug((await params).shop);
+  const shop = await storeFor(params);
   if (!shop) return fail("Store not found.", 404);
   const c = await currentCustomer(shop);
   return ok({ orders: c ? await ordersOfCustomer(shop.id, c.id) : [] });
@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 /** Checkout. Payment runs in test mode: the order is recorded as paid, nothing is charged. */
 export async function POST(req: Request, { params }: Ctx) {
-  const shop = await shopBySlug((await params).shop);
+  const shop = await storeFor(params);
   if (!shop) return fail("Store not found.", 404);
   const c = await currentCustomer(shop);
   if (!c) return fail("Sign in to check out.", 401);
